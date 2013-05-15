@@ -16,7 +16,7 @@
 #include <string.h>
 #include "roff.h"
 
-#define FMT_LLEN(f)	MAX(0, (f)->ll - (f)->li)
+#define FMT_LLEN(f)	MAX(0, (f)->ll - (f)->li - (f)->lI)
 #define FMT_FILL(f)	(!n_ce && n_u)
 #define FMT_ADJ(f)	(n_u && !n_na && !n_ce && (n_j & AD_B) == AD_B)
 
@@ -34,7 +34,7 @@ struct word {
 
 struct line {
 	struct sbuf sbuf;
-	int wid, li, ll;
+	int wid, li, ll, lI;
 	int elsn, elsp;
 };
 
@@ -53,7 +53,7 @@ struct fmt {
 	int gap;		/* space before the next word */
 	int nls;		/* newlines before the next word */
 	int nls_sup;		/* suppressed newlines */
-	int li, ll;		/* current line indentation and length */
+	int li, ll, lI;		/* current line indentation and length */
 	int filled;		/* filled all words in the last fmt_fill() */
 	int eos;		/* last word ends a sentence */
 	int fillreq;		/* fill after the last word (\p) */
@@ -64,12 +64,15 @@ static void fmt_confupdate(struct fmt *f)
 {
 	f->ll = n_l;
 	f->li = n_ti >= 0 ? n_ti : n_i;
+	f->lI = n_tI >= 0 ? n_tI : n_I;
 	n_ti = -1;
+	n_tI = -1;
 }
 
 static int fmt_confchanged(struct fmt *f)
 {
-	return f->ll != n_l || f->li != (n_ti >= 0 ? n_ti : n_i);
+	return f->ll != n_l || f->li != (n_ti >= 0 ? n_ti : n_i) ||
+		f->lI != (n_tI >= 0 ? n_tI : n_I);
 }
 
 /* move words inside an fmt struct */
@@ -143,13 +146,14 @@ static int fmt_spacessum(struct fmt *f, int beg, int end)
 
 /* return the next line in the buffer */
 char *fmt_nextline(struct fmt *f, int *w,
-		int *li, int *ll, int *els_neg, int *els_pos)
+		int *li, int *lI, int *ll, int *els_neg, int *els_pos)
 {
 	struct line *l;
 	if (f->lines_head == f->lines_tail)
 		return NULL;
 	l = &f->lines[f->lines_tail++];
 	*li = l->li;
+	*lI = l->lI;
 	*ll = l->ll;
 	*w = l->wid;
 	*els_neg = l->elsn;
@@ -171,6 +175,7 @@ static struct line *fmt_mkline(struct fmt *f)
 	}
 	l = &f->lines[f->lines_head++];
 	l->li = f->li;
+	l->lI = f->lI;
 	l->ll = f->ll;
 	sbuf_init(&l->sbuf);
 	return l;
@@ -324,7 +329,7 @@ static void fmt_insertword(struct fmt *f, struct wb *wb, int gap)
 	char *beg;
 	char *end;
 	int n, i;
-	int cf, cs, cm;
+	int cf, cs, cm, ccd;
 	n = fmt_hyphmarks(src, hyidx, hyins, hygap);
 	if (n <= 0) {
 		fmt_wb2word(f, fmt_mkword(f), wb, 0, 1, gap, wb_cost(wb));
@@ -345,12 +350,12 @@ static void fmt_insertword(struct fmt *f, struct wb *wb, int gap)
 		if (i < n && hygap[i])			/* remove \~ */
 			end -= strlen(c_nb);
 		wb_catstr(&wbc, beg, end);
-		wb_fnszget(&wbc, &cf, &cs, &cm);
+		wb_fnszget(&wbc, &cf, &cs, &cm, &ccd);
 		icost = i == n ? wb_cost(&wbc) : hygap[i] * 10000000;
 		igap = i == 0 ? gap : hygap[i - 1] * font_swid(dev_font(cf), cs, n_ss);
 		fmt_wb2word(f, fmt_mkword(f), &wbc, ihy, istr, igap, icost);
 		wb_reset(&wbc);
-		wb_fnszset(&wbc, cf, cs, cm);		/* restoring wbc */
+		wb_fnszset(&wbc, cf, cs, cm, ccd);	/* restoring wbc */
 	}
 	wb_done(&wbc);
 }

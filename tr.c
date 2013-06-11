@@ -332,6 +332,8 @@ static int adjmode(int c, int def)
 	case 'b':
 	case 'n':
 		return AD_B;
+	case 'k':
+		return AD_B | AD_K;
 	}
 	return def;
 }

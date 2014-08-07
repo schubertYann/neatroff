@@ -280,6 +280,17 @@ int font_layout(struct font *fn, struct glyph **gsrc, int nsrc, int sz,
 		font_featkn(fn, featkn);
 	for (i = 0; i < ndst; i++)
 		gdst[i] = fn->gl + dst[i];
+	/* cursive attachment */
+	for (i = ndst - 2; i >= 0; i--) {
+		if (gdst[i]->ocur && gdst[i + 1]->icur) {
+			x[i] = x[i + 1];
+			y[i] = y[i + 1];
+			x[i] += gdst[i + 1]->icx - gdst[i]->ocx + gdst[i]->wid;
+			if (gdst[i]->ocx < gdst[i]->wid / 2)	/* r2l probably */
+				x[i] += -gdst[i]->wid - gdst[i + 1]->wid;
+			y[i] -= gdst[i + 1]->icy - gdst[i]->ocy;
+		}
+	}
 	return ndst;
 }
 
@@ -441,6 +452,25 @@ static int font_readggrp(struct font *fn, FILE *fin)
 	return 0;
 }
 
+static int font_readgcur(struct font *fn, FILE *fin)
+{
+	char feat[8];
+	char name[GNLEN];
+	struct glyph *g;
+	char ix[16], iy[16], ox[16], oy[16];
+	if (fscanf(fin, "%s %s %s %s %s %s", feat, name, ix, iy, ox, oy) != 6)
+		return 1;
+	if (!(g = font_glyph(fn, name)))
+		return 0;
+	g->icur = !!strcmp("-", ix);
+	g->ocur = !!strcmp("-", ox);
+	g->icx = atoi(ix);
+	g->icy = atoi(iy);
+	g->ocx = atoi(ox);
+	g->ocy = atoi(oy);
+	return 0;
+}
+
 static int font_readkern(struct font *fn, FILE *fin)
 {
 	char c1[ILNLEN], c2[ILNLEN];
@@ -545,6 +575,8 @@ struct font *font_open(char *path)
 			font_readgpos(fn, fin);
 		} else if (!strcmp("ggrp", tok)) {
 			font_readggrp(fn, fin);
+		} else if (!strcmp("gcur", tok)) {
+			font_readgcur(fn, fin);
 		} else if (!strcmp("spacewidth", tok)) {
 			fscanf(fin, "%d", &fn->spacewid);
 		} else if (!strcmp("special", tok)) {

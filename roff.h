@@ -143,6 +143,8 @@ struct glyph {
 	short wid;		/* character width */
 	short llx, lly, urx, ury;	/* character bounding box */
 	short type;		/* character type; ascender/descender */
+	short icx, icy, ocx, ocy;	/* cursive attachment position */
+	char icur, ocur;	/* has cursive attachment */
 };
 
 /* output device functions */
